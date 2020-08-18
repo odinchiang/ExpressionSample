@@ -8,6 +8,9 @@ namespace ExpressionSample
         static void Main(string[] args)
         {
             ExpressionIntro.Intro1();
+            ExpressionIntro.Intro2();
+            ExpressionIntro.Intro3();
+            ExpressionIntro.Intro4();
 
             Expression firstArg = Expression.Constant(2);
             Expression secondArg = Expression.Constant(3);
