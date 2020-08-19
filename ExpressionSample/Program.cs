@@ -11,6 +11,7 @@ namespace ExpressionSample
             ExpressionIntro.Intro2();
             ExpressionIntro.Intro3();
             ExpressionIntro.Intro4();
+            ExpressionIntro.Intro5();
 
             Expression firstArg = Expression.Constant(2);
             Expression secondArg = Expression.Constant(3);

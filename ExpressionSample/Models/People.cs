@@ -1,4 +1,4 @@
-﻿namespace ExpressionSample
+﻿namespace ExpressionSample.Models
 {
     public class People
     {

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
-using System.Reflection;
+using ExpressionSample.Models;
 
 namespace ExpressionSample
 {
@@ -146,18 +146,100 @@ namespace ExpressionSample
             bool result = expression.Compile().Invoke(new People() { Id = 5, Name = "Mark", Age = 20 });
         }
 
+        // 表達式目錄樹的用途是為了"動態"
+        // ADO.NET 時 WHERE 條件常用判斷條件並拼接字串的方式組合 SQL 語句
+        // 在 LinQ 中若想用類似拼接的方式
+        // 1. 表達式目錄樹的擴展，擴展 AND 和 OR，基於 Visitor
+        // 2. 根據字串 + 條件自動拼裝起來
+
         /// <summary>
-        /// 表達式目錄樹的用途是為了"動態"
+        /// 根據字串 + 條件自動拼裝起來 (此處尚未封裝)
         /// </summary>
         public static void Intro5()
         {
-            // ADO.NET 時 WHERE 條件常用判斷條件並拼接字串的方式組合 SQL 語句
-            // 在 LinQ 中則可使用表達式樹進行組合
+            // 可以封裝一個表達式目錄樹的自動生成，根據使用者介面的輸入
 
             Expression<Func<People, bool>> lambda = x => x.Name.Contains("Mark") && x.Age > 5;
+            
+            ParameterExpression parameterExpression = Expression.Parameter(typeof(People), "x");
 
-            //ParameterExpression parameterExpression = Expression.Parameter(typeof(People), "x");
-            //Expression<Func<People, bool>> expression = Expression.Lambda<Func<People, bool>>(Expression.AndAlso(Expression.Call(Expression.Property(parameterExpression, (MethodInfo)MethodBase.GetMethodFromHandle((RuntimeMethodHandle)/*OpCode not supported: LdMemberToken*/)), (MethodInfo)MethodBase.GetMethodFromHandle((RuntimeMethodHandle)/*OpCode not supported: LdMemberToken*/), Expression.Constant("Mark", typeof(string))), Expression.GreaterThan(Expression.Property(parameterExpression, (MethodInfo)MethodBase.GetMethodFromHandle((RuntimeMethodHandle)/*OpCode not supported: LdMemberToken*/)), Expression.Constant(5, typeof(int)))), new ParameterExpression[1]
+            // if(name 不為空)
+            var name = typeof(People).GetProperty("Name");
+            var mark = Expression.Constant("Mark", typeof(string));
+            var nameExp = Expression.Property(parameterExpression, name);
+            var contains = typeof(string).GetMethod("Contains", new Type[]{ typeof(string) });
+            var containsExp = Expression.Call(nameExp, contains, new Expression[] { mark });
+
+            // if(age 不為空)
+            var age = typeof(People).GetProperty("Age");
+            var age5 = Expression.Constant(5, typeof(int));
+            var ageExp = Expression.Property(parameterExpression, age);
+            var greaterThanExp = Expression.GreaterThan(ageExp, age5);
+
+            var body = Expression.AndAlso(containsExp, greaterThanExp);
+
+            Expression<Func<People, bool>> expression = Expression.Lambda<Func<People, bool>>(body, new ParameterExpression[1]
+            {
+                parameterExpression
+            });
+
+            bool result = expression.Compile().Invoke(new People()
+            {
+                Id = 333,
+                Name = "Mark",
+                Age = 20
+            });
+        }
+
+        /*
+         類型轉換的方法
+
+         1. 傳統的類型轉換 (硬編碼，性能最佳)
+
+            People people = new People()
+            {
+                Id = 11, Name = "Mark", Age = 20
+            };
+
+            PeopleDto peopleDto = new PeopleDto()
+            {
+                Id = people.Id, Name = people.Name, Age = people.Age
+            };
+         
+         2. 用反射 + 泛型實現封裝類型轉換 (性能較差)
+         3. 序列化反序列化 (性能最差，但序列化反序列化主要不是用在此)
+         4. 表達式目錄樹 (性能比傳統略差一點，但可加入快取機制，動態生成硬編碼，比 Automapper 性能好)
+         */
+
+        /// <summary>
+        /// 表達式目錄樹實現類型轉換 (動態拼裝委派)
+        /// </summary>
+        public static void Intro6()
+        {
+            // 思路：用委派封裝傳統的類型轉換方式
+            //Func<People, PeopleDto> func = x => new PeopleDto()
+            //{
+            //    Id = x.Id,
+            //    Name = x.Name,
+            //    Age = x.Age
+            //};
+
+            //PeopleDto peopleDto = func.Invoke(new People()
+            //{
+            //    Id = 323, Name = "Mary", Age = 18
+            //});
+            
+            // 思路：動態拼裝委派並快取這個委派，之後再次轉換就沒有性能損耗
+            Expression<Func<People, PeopleDto>> lambda = p => new PeopleDto()
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Age = p.Age
+            };
+
+
+            //ParameterExpression parameterExpression = Expression.Parameter(typeof(People), "p");
+            //Expression<Func<People, PeopleDto>> expression = Expression.Lambda<Func<People, PeopleDto>>(Expression.MemberInit(Expression.New(typeof(PeopleDto)), Expression.Bind(FieldInfo.GetFieldFromHandle((RuntimeFieldHandle)/*OpCode not supported: LdMemberToken*/), Expression.Field(parameterExpression, FieldInfo.GetFieldFromHandle((RuntimeFieldHandle)/*OpCode not supported: LdMemberToken*/))), Expression.Bind((MethodInfo)MethodBase.GetMethodFromHandle((RuntimeMethodHandle)/*OpCode not supported: LdMemberToken*/), Expression.Property(parameterExpression, (MethodInfo)MethodBase.GetMethodFromHandle((RuntimeMethodHandle)/*OpCode not supported: LdMemberToken*/))), Expression.Bind((MethodInfo)MethodBase.GetMethodFromHandle((RuntimeMethodHandle)/*OpCode not supported: LdMemberToken*/), Expression.Property(parameterExpression, (MethodInfo)MethodBase.GetMethodFromHandle((RuntimeMethodHandle)/*OpCode not supported: LdMemberToken*/)))), new ParameterExpression[1]
             //{
             //    parameterExpression
             //});
