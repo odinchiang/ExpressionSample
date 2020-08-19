@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq.Expressions;
+
+using ExpressionSample.MappingExtend;
 using ExpressionSample.Models;
 
 namespace ExpressionSample
@@ -160,14 +163,14 @@ namespace ExpressionSample
             // 可以封裝一個表達式目錄樹的自動生成，根據使用者介面的輸入
 
             Expression<Func<People, bool>> lambda = x => x.Name.Contains("Mark") && x.Age > 5;
-            
+
             ParameterExpression parameterExpression = Expression.Parameter(typeof(People), "x");
 
             // if(name 不為空)
             var name = typeof(People).GetProperty("Name");
             var mark = Expression.Constant("Mark", typeof(string));
             var nameExp = Expression.Property(parameterExpression, name);
-            var contains = typeof(string).GetMethod("Contains", new Type[]{ typeof(string) });
+            var contains = typeof(string).GetMethod("Contains", new Type[] { typeof(string) });
             var containsExp = Expression.Call(nameExp, contains, new Expression[] { mark });
 
             // if(age 不為空)
@@ -209,40 +212,106 @@ namespace ExpressionSample
          2. 用反射 + 泛型實現封裝類型轉換 (性能較差)
          3. 序列化反序列化 (性能最差，但序列化反序列化主要不是用在此)
          4. 表達式目錄樹 (性能比傳統略差一點，但可加入快取機制，動態生成硬編碼，比 Automapper 性能好)
-         */
+        
+         思路：用委派封裝傳統的類型轉換方式
+            Func<People, PeopleDto> func = x => new PeopleDto()
+            {
+                Id = x.Id,
+                Name = x.Name,
+                Age = x.Age
+            };
 
-        /// <summary>
-        /// 表達式目錄樹實現類型轉換 (動態拼裝委派)
-        /// </summary>
-        public static void Intro6()
-        {
-            // 思路：用委派封裝傳統的類型轉換方式
-            //Func<People, PeopleDto> func = x => new PeopleDto()
-            //{
-            //    Id = x.Id,
-            //    Name = x.Name,
-            //    Age = x.Age
-            //};
+            PeopleDto peopleDto = func.Invoke(new People()
+            {
+                Id = 323, Name = "Mary", Age = 18
+            });
 
-            //PeopleDto peopleDto = func.Invoke(new People()
-            //{
-            //    Id = 323, Name = "Mary", Age = 18
-            //});
-            
-            // 思路：動態拼裝委派並快取這個委派，之後再次轉換就沒有性能損耗
+         思路：動態拼裝委派並快取這個委派，之後再次轉換就沒有性能損耗
             Expression<Func<People, PeopleDto>> lambda = p => new PeopleDto()
             {
                 Id = p.Id,
                 Name = p.Name,
                 Age = p.Age
             };
+         */
 
+        /// <summary>
+        /// 表達式目錄樹實現類型轉換 (動態拼裝委派)
+        /// </summary>
+        public static void MappingTest()
+        {
+            People people = new People()
+            {
+                Id = 11,
+                Name = "Mark",
+                Age = 31
+            };
+            long common = 0;
+            long generic = 0;
+            long cache = 0;
+            long reflection = 0;
+            long serialize = 0;
+            {
+                Stopwatch watch = new Stopwatch();
+                watch.Start();
+                for (int i = 0; i < 1_000_000; i++)
+                {
+                    PeopleDto peopleDto = new PeopleDto()
+                    {
+                        Id = people.Id,
+                        Name = people.Name,
+                        Age = people.Age
+                    };
+                }
+                watch.Stop();
+                common = watch.ElapsedMilliseconds;
+            }
+            {
+                Stopwatch watch = new Stopwatch();
+                watch.Start();
+                for (int i = 0; i < 1_000_000; i++)
+                {
+                    PeopleDto peopleCopy = ReflectionMapper.Trans<People, PeopleDto>(people);
+                }
+                watch.Stop();
+                reflection = watch.ElapsedMilliseconds;
+            }
+            {
+                Stopwatch watch = new Stopwatch();
+                watch.Start();
+                for (int i = 0; i < 1_000_000; i++)
+                {
+                    PeopleDto peopleCopy = SerializeMapper.Trans<People, PeopleDto>(people);
+                }
+                watch.Stop();
+                serialize = watch.ElapsedMilliseconds;
+            }
+            {
+                Stopwatch watch = new Stopwatch();
+                watch.Start();
+                for (int i = 0; i < 1_000_000; i++)
+                {
+                    PeopleDto peopleCopy = ExpressionMapper.Trans<People, PeopleDto>(people);
+                }
+                watch.Stop();
+                cache = watch.ElapsedMilliseconds;
+            }
+            {
+                Stopwatch watch = new Stopwatch();
+                watch.Start();
+                for (int i = 0; i < 1_000_000; i++)
+                {
+                    PeopleDto peopleCopy = ExpressionGenericMapper<People, PeopleDto>.Trans(people);
+                }
+                watch.Stop();
+                generic = watch.ElapsedMilliseconds;
+            }
 
-            //ParameterExpression parameterExpression = Expression.Parameter(typeof(People), "p");
-            //Expression<Func<People, PeopleDto>> expression = Expression.Lambda<Func<People, PeopleDto>>(Expression.MemberInit(Expression.New(typeof(PeopleDto)), Expression.Bind(FieldInfo.GetFieldFromHandle((RuntimeFieldHandle)/*OpCode not supported: LdMemberToken*/), Expression.Field(parameterExpression, FieldInfo.GetFieldFromHandle((RuntimeFieldHandle)/*OpCode not supported: LdMemberToken*/))), Expression.Bind((MethodInfo)MethodBase.GetMethodFromHandle((RuntimeMethodHandle)/*OpCode not supported: LdMemberToken*/), Expression.Property(parameterExpression, (MethodInfo)MethodBase.GetMethodFromHandle((RuntimeMethodHandle)/*OpCode not supported: LdMemberToken*/))), Expression.Bind((MethodInfo)MethodBase.GetMethodFromHandle((RuntimeMethodHandle)/*OpCode not supported: LdMemberToken*/), Expression.Property(parameterExpression, (MethodInfo)MethodBase.GetMethodFromHandle((RuntimeMethodHandle)/*OpCode not supported: LdMemberToken*/)))), new ParameterExpression[1]
-            //{
-            //    parameterExpression
-            //});
+            Console.WriteLine($"common = { common} ms");
+            Console.WriteLine($"reflection = { reflection} ms");
+            Console.WriteLine($"serialize = { serialize} ms");
+            Console.WriteLine($"cache = { cache} ms");
+            Console.WriteLine($"generic = { generic} ms");
         }
     }
 }

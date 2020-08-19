@@ -7,11 +7,14 @@ namespace ExpressionSample
     {
         static void Main(string[] args)
         {
-            ExpressionIntro.Intro1();
-            ExpressionIntro.Intro2();
-            ExpressionIntro.Intro3();
-            ExpressionIntro.Intro4();
-            ExpressionIntro.Intro5();
+            //ExpressionIntro.Intro1();
+            //ExpressionIntro.Intro2();
+            //ExpressionIntro.Intro3();
+            //ExpressionIntro.Intro4();
+            //ExpressionIntro.Intro5();
+            ExpressionIntro.MappingTest();
+
+            Console.WriteLine("==========================");
 
             Expression firstArg = Expression.Constant(2);
             Expression secondArg = Expression.Constant(3);
